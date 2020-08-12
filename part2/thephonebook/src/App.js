@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import Persons from "./components/Persons";
+import PersonForm from "./components/PersonForm";
+import Filter from "./components/Filter";
+import Notification from "./components/Notification";
+import personSevice from "./services/Person";
 
 const App = () => {
     const [persons, setPersons] = useState([]);
     const [newName, setNewName] = useState("");
     const [newPhoneNumber, setNewPhoneNumber] = useState("");
-    const [filteredPerson, setFilterPerson] = useState([]);
     const [filteredString, setFilterString] = useState("");
-    const getPersons = () => {
-        axios.get("http://localhost:3001/persons").then((res) => {
-            setPersons(res.data);
-            console.log(res.data);
-        });
-    };
+    const [notificationContent, setNotificationContent] = useState("");
+    const [notificationType, setNotificationType] = useState("");
+    const filteredPerson = filteredString
+        ? persons.filter((person) =>
+              person.name.toLowerCase().includes(filteredString.toLowerCase())
+          )
+        : persons;
     useEffect(() => {
-        getPersons();
+        personSevice.getAllPersons().then((persons) => setPersons(persons));
     }, []);
     const addPerson = (event) => {
         event.preventDefault();
@@ -22,23 +26,84 @@ const App = () => {
             name: newName.trim(),
             number: newPhoneNumber.trim(),
         };
-        const findSame = (person) => {
-            return person.name === personObject.name;
-        };
-        if (persons.some((person) => findSame(person))) {
-            window.alert(`${personObject.name} is already added to phonebook`);
+        const hasSamePerson = persons.filter(
+            (person) => person.name === personObject.name
+        );
+        if (hasSamePerson.length) {
+            if (
+                window.confirm(
+                    `${personObject.name} is already added to phonebook, replace it with new one ?`
+                )
+            ) {
+                personSevice
+                    .updatePerson(hasSamePerson[0].id, personObject)
+                    .then(() => {
+                        personSevice
+                            .getAllPersons()
+                            .then((persons) => setPersons(persons));
+                    })
+                    .catch((error) => {
+                        setNotificationType("error");
+                        setNotificationContent(
+                            `Information of ${personObject.name} is already removed`
+                        );
+                        setTimeout(() => {
+                            setNotificationType(null);
+                            setNotificationContent(null);
+                        }, 5000);
+                    });
+            }
         } else {
             setPersons(persons.concat(personObject));
+            personSevice.addPerson(personObject).then((res_person) => {
+                setPersons(persons.concat(res_person));
+                setNotificationType("success");
+                setNotificationContent(`${res_person.name} added to phonebook`);
+                setTimeout(() => {
+                    setNotificationType(null);
+                    setNotificationContent(null);
+                }, 5000);
+            });
         }
         setNewName("");
         setNewPhoneNumber("");
     };
+    const handleRemovePerson = (personNeedRemove) => {
+        if (
+            window.confirm(
+                `Are you sure you want to remove ${personNeedRemove.name} ?`
+            )
+        ) {
+            personSevice
+                .removePerson(personNeedRemove)
+                .then(() => {
+                    setPersons(
+                        persons.filter(
+                            (person) => person.id !== personNeedRemove.id
+                        )
+                    );
+                    setNotificationType("success");
+                    setNotificationContent(`${personNeedRemove.name} removed`);
+                    setTimeout(() => {
+                        setNotificationType(null);
+                        setNotificationContent(null);
+                    }, 5000);
+                })
+                .catch((error) => {
+                    setNotificationType("error");
+                    setNotificationContent(
+                        `Information of ${personNeedRemove.name} is already removed`
+                    );
+                    setTimeout(() => {
+                        setNotificationType(null);
+                        setNotificationContent(null);
+                    }, 5000);
+                });
+        }
+    };
+
     const filterPerson = (event) => {
         setFilterString(event.target.value);
-        const result = persons.filter((person) =>
-            person.name.toLowerCase().includes(event.target.value.toLowerCase())
-        );
-        setFilterPerson(result);
     };
     const handlePersonChange = (event) => {
         setNewName(event.target.value);
@@ -46,11 +111,13 @@ const App = () => {
     const handlePhoneNumberChange = (event) => {
         setNewPhoneNumber(event.target.value);
     };
-
-    const number = filteredString.length === 0 ? persons : filteredPerson;
     return (
         <div>
             <h2>Phonebook</h2>
+            <Notification
+                notificationType={notificationType}
+                notificationContent={notificationContent}
+            />
             <Filter
                 filteredString={filteredString}
                 filterPerson={filterPerson}
@@ -64,47 +131,10 @@ const App = () => {
                 handlePhoneNumberChange={handlePhoneNumberChange}
             />
             <h2>Numbers</h2>
-            <Persons number={number} />
-        </div>
-    );
-};
-const Persons = ({ number }) => {
-    return number.map((person) => (
-        <div key={person.name}>
-            {person.name} {person.number}
-        </div>
-    ));
-};
-const PersonForm = (props) => {
-    return (
-        <form onSubmit={props.addPerson}>
-            <div>
-                name:{" "}
-                <input
-                    value={props.newName}
-                    onChange={props.handlePersonChange}
-                />
-            </div>
-            <div>
-                number:{" "}
-                <input
-                    value={props.newPhoneNumber}
-                    onChange={props.handlePhoneNumberChange}
-                />
-            </div>
-            <div>
-                <button type="submit">add</button>
-            </div>
-        </form>
-    );
-};
-const Filter = (props) => {
-    return (
-        <div>
-            Filter show with{" "}
-            <input
-                value={props.filteredString}
-                onChange={props.filterPerson}></input>
+            <Persons
+                persons={filteredPerson}
+                handleRemovePerson={handleRemovePerson}
+            />
         </div>
     );
 };

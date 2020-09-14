@@ -1,6 +1,5 @@
 const logger = require("./utils/logger");
 const config = require("./utils/config");
-const Blog = require("./models/blog");
 const express = require("express");
 const app = express();
 const cors = require("cors");
@@ -11,7 +10,7 @@ const middleware = require("./utils/middleware")
 mongoose.connect(config.MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-});
+}).then(logger.info(config.MONGODB_URI));
 
 app.use(cors());
 app.use(express.json());
